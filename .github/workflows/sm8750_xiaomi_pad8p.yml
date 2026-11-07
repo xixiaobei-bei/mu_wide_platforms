@@ -1,38 +1,65 @@
-# This is a basic workflow to help you get started with Actions
-
 name: SM8750 Xiaomi Pad8 Pro
 
-# Controls when the workflow will run
 on:
-#  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
     branches: [ "main" ]
     paths:
       - 'Platforms/PakalaPkg/Device/xiaomi-piano/**'
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Indicate that we are running in CI
 env:
   WM_CI_BUILD: true
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v6
-      - name: Build SB/NOSB uefi for oneplus 15.
-        run: bash scripts/ci_setup.sh && ./build_uefi.py -d xiaomi-piano
+        with:
+          submodules: false
+
+      - name: Host toolchain
+        run: |
+          set -eux
+          sudo apt update -qq
+          sudo apt install -y -qq --no-install-recommends \
+            uuid-dev clang llvm lld gcc-aarch64-linux-gnu git build-essential \
+            iasl nasm gettext locales ca-certificates curl \
+            python3 python3-venv python3-pip python3-git gnupg mono-devel
+          git config --global --add safe.directory '*'
+          python3 -m venv /tmp/muvenv
+          . /tmp/muvenv/bin/activate
+          pip install --upgrade pip
+          pip install -r pip-requirements.txt
+
+      - name: Init submodules (stuart_setup/update)
+        run: |
+          set -x
+          . /tmp/muvenv/bin/activate
+          ./build_uefi.py --init || true
+
+      - name: Drop unavailable NuGet-only tool dependencies
+        run: |
+          set -x
+          find . -name '*.ext_dep.json' -print
+          find . -name '*.ext_dep.json' -print0 \
+            | xargs -0 -r grep -lE 'mu_nasm|edk2-acpica-iasl|mu-uncrustify-release' \
+            | while read -r f; do echo "disabling $f"; mv "$f" "$f.disabled"; done
+          echo "=== remaining ext_dep declarations"
+          find . -name '*.ext_dep.json' -print | head -40
+
+      - name: Build SB + NOSB UEFI for xiaomi-piano
+        run: |
+          set -x
+          . /tmp/muvenv/bin/activate
+          ./build_uefi.py -d xiaomi-piano
+          find Build -maxdepth 4 -type f \( -name '*.img' -o -name '*.fd' \) -printf '%p %s\n'
 
       - name: Upload Artifact
+        if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: uefi-images-plk110
+          name: uefi-images-xiaomi-piano
           path: Build/*/ci_artifacts
           compression-level: 9
+          if-no-files-found: warn
