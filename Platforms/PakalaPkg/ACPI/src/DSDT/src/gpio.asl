@@ -6,13 +6,15 @@
  * and a driver that MmMapIoSpaceEx()s it and reads a register takes an SError
  * that resets the whole machine (no bugcheck, no dump, no log).
  *
- * QCOM0F0C is what qcgpio8480.inf (Qualcomm System Manager GPIO class
- * extension, qcgpio.sys) binds to, so installing that driver gives the block
- * a real owner and keeps it clocked.
+ * QCOMFFEB is the HID that this Windows build's own inbox driver
+ * (Windows\INF\qcgpio_i.inf, "%GPIO.DeviceDesc%=GPIO_Inst,,ACPI\QCOMFFEB")
+ * binds to. Using it means no external driver has to be injected: PnP
+ * installs qcgpio_i.sys on first boot, it loads as a BOOT_START driver on the
+ * next one and becomes the legal owner of the block (clock/power included).
  */
 Device (TLMM)
 {
-    Name (_HID, "QCOM0F0C")
+    Name (_HID, "QCOMFFEB")
     Name (_UID, Zero)
     Name (_CCA, One)
 
@@ -21,7 +23,7 @@ Device (TLMM)
         Return (0x0F)
     }
 
-    Method (_CRS, 0, NotSerialized)
+    Method (_CRS, 0, Serialized)
     {
         Name (RBUF, ResourceTemplate ()
         {
