@@ -43,5 +43,6 @@ DefinitionBlock ("", "DSDT", 2, "QCOMM ", "SDM8380 ", 0x00000003)
 
         Include("ufs.asl")
         Include("usb.asl")
+        Include("gpio.asl")
     }
 }
